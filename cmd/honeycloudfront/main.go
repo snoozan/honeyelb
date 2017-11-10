@@ -29,7 +29,7 @@ func init() {
 	if BuildID == "" {
 		versionStr = "dev"
 	} else {
-		versionStr = "1." + BuildID
+		versionStr = BuildID
 	}
 
 	// init libhoney user agent properly
@@ -54,7 +54,7 @@ func cmdCloudFront(args []string) error {
 
 	if len(args) > 0 {
 		switch args[0] {
-		case "ls":
+		case "ls", "list":
 			for _, distributionSummary := range listDistributionsResp.DistributionList.Items {
 				fmt.Println(*distributionSummary.Id)
 			}
@@ -125,7 +125,7 @@ http://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer
 
 				cloudfrontDownloader := logbucket.NewCloudFrontDownloader(bucket, *loggingConfig.Prefix, id)
 				downloader := logbucket.NewDownloader(sess, stater, cloudfrontDownloader)
-				downloadsCh = downloader.Download()
+				go downloader.Download(downloadsCh)
 			}
 
 			signalCh := make(chan os.Signal)
@@ -163,6 +163,12 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+
+	if opt.Debug {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
+	logrus.WithField("version", BuildID).Debug("Program starting")
 
 	if opt.Dataset == "aws-$SERVICE-access" {
 		opt.Dataset = "aws-cloudfront-access"

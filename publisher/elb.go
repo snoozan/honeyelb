@@ -82,17 +82,22 @@ func (ep *ELBEventParser) DynSample(in <-chan event.Event, out chan<- event.Even
 			} else {
 				key = "0"
 				logrus.WithFields(logrus.Fields{
-					"field":    "backend_status_code",
-					"intended": "int64",
+					"field":       "backend_status_code",
+					"intended":    "int64",
+					"actual_val":  backendStatusCode,
+					"actual_type": fmt.Sprintf("%T", backendStatusCode),
 				}).Error("Did not cast field from access log correctly")
 			}
 		}
 		if elbStatusCode, ok := ev.Data["elb_status_code"]; ok {
 			if esc, ok := elbStatusCode.(int64); ok {
 				key = fmt.Sprintf("%s_%d", key, esc)
+			} else {
 				logrus.WithFields(logrus.Fields{
-					"field":    "elb_status_code",
-					"intended": "int64",
+					"field":       "elb_status_code",
+					"intended":    "int64",
+					"actual_val":  elbStatusCode,
+					"actual_type": fmt.Sprintf("%T", elbStatusCode),
 				}).Error("Did not cast field from access log correctly")
 			}
 		}

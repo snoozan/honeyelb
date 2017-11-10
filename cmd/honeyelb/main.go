@@ -28,7 +28,7 @@ func init() {
 	if BuildID == "" {
 		versionStr = "dev"
 	} else {
-		versionStr = "1." + BuildID
+		versionStr = BuildID
 	}
 
 	// init libhoney user agent properly
@@ -116,15 +116,9 @@ http://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer
 				elbDownloader := logbucket.NewELBDownloader(sess, *accessLog.S3BucketName, *accessLog.S3BucketPrefix, lbName)
 				downloader := logbucket.NewDownloader(sess, stater, elbDownloader)
 
-				// TODO: One-goroutine-per-LB is a bit silly.
-				//
-				// Finish implementing a proper 'pipeline'
-				// instead using channels:
-				//
-				// (Query Objects to Process) => (Download Objects) => (Parse Objects) => (Send to HC)
-				//
-				// TODO: There is a bug where this should be slice (or whatever)
-				downloadsCh = downloader.Download()
+				// TODO: One-goroutine-per-LB feels a bit
+				// silly.
+				go downloader.Download(downloadsCh)
 			}
 
 			signalCh := make(chan os.Signal)
@@ -163,6 +157,12 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+
+	if opt.Debug {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
+	logrus.WithField("version", BuildID).Debug("Program starting")
 
 	if opt.Dataset == "aws-$SERVICE-access" {
 		opt.Dataset = "aws-elb-access"

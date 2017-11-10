@@ -112,6 +112,7 @@ func sendEventsToHoneycomb(in <-chan event.Event) {
 		shaper.Shape("request", &ev)
 		libhEv := libhoney.NewEvent()
 		libhEv.Timestamp = ev.Timestamp
+		libhEv.SampleRate = uint(ev.SampleRate)
 		if err := libhEv.Add(ev.Data); err != nil {
 			logrus.WithFields(logrus.Fields{
 				"event": ev,

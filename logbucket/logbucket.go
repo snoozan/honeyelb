@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -72,7 +71,10 @@ func NewCloudFrontDownloader(bucketName, bucketPrefix, distID string) *CloudFron
 
 func (d *CloudFrontDownloader) ObjectPrefix(day time.Time) string {
 	dayPath := day.Format("2006-01-02")
-	return d.Prefix + "/" + d.DistributionID + "." + dayPath
+	if d.Prefix != "" {
+		d.Prefix += "/"
+	}
+	return d.Prefix + d.DistributionID + "." + dayPath
 }
 
 func (d *CloudFrontDownloader) String() string {
@@ -97,7 +99,10 @@ func NewELBDownloader(sess *session.Session, bucketName, bucketPrefix, lbName st
 // pass in time.Now().UTC()
 func (d *ELBDownloader) ObjectPrefix(day time.Time) string {
 	dayPath := day.Format("/2006/01/02")
-	return d.Prefix + "/AWSLogs/" + d.AccountID + "/" + AWSElasticLoadBalancing + "/" + d.Region + dayPath +
+	if d.Prefix != "" {
+		d.Prefix += "/"
+	}
+	return d.Prefix + "AWSLogs/" + d.AccountID + "/" + AWSElasticLoadBalancing + "/" + d.Region + dayPath +
 		"/" + d.AccountID + "_" + AWSElasticLoadBalancing + "_" + d.Region + "_" + d.LBName
 }
 
@@ -151,19 +156,14 @@ func (d *Downloader) downloadObjects() {
 		if err := d.downloadObject(obj); err != nil {
 			logrus.Error(err)
 		}
+		// TODO: Should we sleep in between downloads here? Watching
+		// many load balancers concurrently could potentially result in
+		// many downloads attempting to go off at once, and
+		// consequently getting rate limited by AWS.
 	}
 }
 
 func (d *Downloader) accessLogBucketPageCallback(processedObjects []string, bucketResp *s3.ListObjectsOutput, lastPage bool) bool {
-	// TODO: This sort doesn't work as originally intended if the paging
-	// comes into play. Consider removing, or gathering all desired objects
-	// as a result of the callback, _then_ sorting and iterating over them.
-	sort.Slice(bucketResp.Contents, func(i, j int) bool {
-		return (*bucketResp.Contents[i].LastModified).After(
-			*bucketResp.Contents[j].LastModified,
-		)
-	})
-
 	for _, obj := range bucketResp.Contents {
 		for _, processedObj := range processedObjects {
 			if *obj.Key == processedObj {
@@ -214,13 +214,13 @@ func (d *Downloader) pollObjects() {
 			fmt.Fprintln(os.Stderr, "Error listing/paging bucket objects: ", err)
 			os.Exit(1)
 		}
-		logrus.Info("Bucket polling paused until the next set of logs are available")
+		logrus.WithField("entity", d.String()).Info("Bucket polling paused until the next set of logs are available")
 		<-ticker
 	}
 }
 
-func (d *Downloader) Download() chan state.DownloadedObject {
+func (d *Downloader) Download(downloadedObjects chan state.DownloadedObject) {
+	d.DownloadedObjects = downloadedObjects
 	go d.pollObjects()
 	go d.downloadObjects()
-	return d.DownloadedObjects
 }
